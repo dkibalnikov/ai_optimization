@@ -7,10 +7,7 @@ source("algorithms/functions.R")
 # Create task environment ---------------------------------------------------------------------------------------------------------------------------------
 n_cities <- 16
 
-set.seed(2021)
-cities <- data.frame(x=0, y= 0) |> 
-  rbind(data.frame(x = runif(n_cities-1, max = 100), y = runif(n_cities-1, max = 100))) |> 
-  as.matrix()
+cities <- generate_task(n_cities)
 
 p0 <- as.data.frame(cities) |> 
   transform(n=seq_len(n_cities)) |>
@@ -61,7 +58,7 @@ MIP_route <- tidyr::pivot_wider(solution, id_cols = "i", names_from = "j", value
   
 prep4plot(cities, MIP_route) |>
   plot_tour() +
-  labs(title = paste0("MIP решение: ", round(res_MIP$objective_value, 2))) 
+  labs(title = paste0("MIP solution: ", round(res_MIP$objective_value, 2))) 
 
 # Wrap model and calculate batch  -----------------------------------------
 
@@ -103,23 +100,7 @@ get_MIP <- function(task){
   
   tibble::tibble(model = "MIP", duration = duration, distance = res_MIP$objective_value, route = list(route))
 }
-
 tst <- get_MIP(cities)
-
-calc_tours <- function(opt_fun, seeds=2021:2030, n_cities = 16, runs = 1){
-  purrr::map(seeds, .progress = TRUE, \(x){
-    set.seed(x)
-    task <- data.frame(x=0, y= 0) |> 
-      rbind(data.frame(x = runif(n_cities-1, max = 100), y = runif(n_cities-1, max = 100))) |> 
-      as.matrix()
-    # browser()
-    seq_len(runs) |> 
-      purrr::map(\(y)opt_fun(task)|>dplyr::mutate(run=y)) |>  
-      purrr::list_rbind() |> 
-      dplyr::mutate(seed=x)
-  }) |> 
-    purrr::list_rbind()
-}
 
 res_16 <- calc_tours(get_MIP, n_cities = 16)
 # res_32 <- calc_tours(get_MIP, n_cities = 32) # don't even try 

@@ -3,10 +3,18 @@
 # ROUTE[vector] - the order of visits (solution)
 # TOUR[matrix or tensor] - the coordinates shaped in solution sequence 
 
+# to generate task (cities layout)
+generate_task <- function(n_cities=16, seed=2021){
+  set.seed(seed)
+  data.frame(x=0, y= 0) |> 
+    rbind(data.frame(x = runif(n_cities-1, max = 100), y = runif(n_cities-1, max = 100))) |> 
+    as.matrix()
+}
+
 # function to compute the distance of a route
 calc_dist4mtrx <- function(dist_mtrx, route){
   # route <- random_route(cities)
-  mapply(\(x,y)dist_mtrx[x,y], route[-length(route)], route[-1]) |> sum()
+  mapply(\(x,y)dist_mtrx[x,y], route, c(route[-1], route[1])) |> sum()
 }
 
 # function to compute the distance of a route for solution tensor 
@@ -56,7 +64,7 @@ get_route4state_net <- function(state_net){
 
 # prepares table with coordinates and order in required sequence
 prep4plot <- function(task, route){
-  # browser()
+  #browser()
   tour <- task[route,]
   depot_pos <- which(tour[,1] == 0)
   if(depot_pos == 1){buity_tour <- tour}else{buity_tour <- rbind(tour[depot_pos:nrow(tour),], tour[1:(depot_pos - 1),])}
@@ -82,4 +90,17 @@ plot_tour <- function(tour_prep, init_order=TRUE){
       geom_point(data = data.frame(order=1, x=0, y=0), shape = 21, size = 5, col = "firebrick"),
       theme(legend.position = "none")
     )
+}
+
+# to calculate multiple optimization runs for multiple seeds 
+calc_tours <- function(opt_fun, seeds=2021:2030, n_cities = 16, runs = 1){
+  purrr::map(seeds, .progress = TRUE, \(x){
+    task <- generate_task(n_cities, x)
+    # browser()
+    seq_len(runs) |> 
+      purrr::map(\(y)opt_fun(task)|>dplyr::mutate(run=y)) |>  
+      purrr::list_rbind() |> 
+      dplyr::mutate(seed=x)
+  }) |> 
+    purrr::list_rbind()
 }
