@@ -6,18 +6,20 @@ tsts <- list.files("test_results/", full.names = T) |>
   list_rbind()
 
 mutate(tsts, task_size = lapply(route, \(x)ifelse(length(x)%%2==0, length(x), length(x)-1)) |> unlist()) |> 
-  ggplot(aes(model, distance, fill = model, col= model)) + 
+  ggplot(aes(str_wrap(model, 8), distance, fill = model, col= model)) + 
   geom_violin(alpha = .2) + 
   geom_jitter(alpha = .5)+
   facet_grid(~task_size, scales = "free") + 
-  coord_flip()
+  coord_flip() + 
+  theme(legend.position = "none")
   
 dplyr::mutate(tsts, task_size = lapply(route, \(x)ifelse(length(x)%%2==0, length(x), length(x)-1)) |> unlist()) |> 
-  ggplot(aes(model, log(as.numeric(duration)), fill = model, col= model)) + 
+  ggplot(aes(str_wrap(model, 8), log(as.numeric(duration)), fill = model, col= model)) + 
   geom_violin(alpha = .2) + 
   geom_jitter(alpha = .5)+
   facet_grid(~task_size, scales = "free") + 
-  coord_flip()
+  coord_flip() + 
+  theme(legend.position = "none")
 
 example_route <- filter(tsts, model == "MIP" & seed ==2021)[["route"]][[1]] 
 swap_route <- example_route

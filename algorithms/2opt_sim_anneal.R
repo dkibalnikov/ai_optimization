@@ -1,5 +1,6 @@
 library(ggplot2)
 source("algorithms/functions.R")
+# source("https://raw.githubusercontent.com/dkibalnikov/ai_optimization/refs/heads/main/algorithms/functions.R")
 
 # Create task environment ---------------------------------------------------------------------------------------------------------------------------------
 n_cities <- 16
@@ -182,7 +183,7 @@ get_sim_anneal <- function(task){
   res <- sim_anneal(task, dist_mtrx) 
   duration <- Sys.time() - start_time
   
-  tibble::tibble(model = "2 opt + Simulated annealing", duration = duration, distance = res$distance, route = list(res$route))
+  tibble::tibble(model = "2 opt + Sim. annealing", duration = duration, distance = res$distance, route = list(res$route))
   
 }
 get_sim_anneal(cities)
