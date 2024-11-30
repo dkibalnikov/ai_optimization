@@ -77,6 +77,8 @@ prep4plot <- function(task, route){
 
 # function to plot solution
 plot_tour <- function(tour_prep, init_order=TRUE){
+  n_cities <- nrow(tour_prep) - 1 
+  
   tour_prep |> 
     ggplot(aes(x, y, col = order)) + 
     list(
