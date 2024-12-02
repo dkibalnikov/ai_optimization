@@ -89,7 +89,7 @@ prep4plot(cities, res_two_opt$route[-length(res_two_opt$route)]) |>
   labs(title = paste0("2-opt solution: ", round(res_two_opt$distance, 2))) 
 
 # Simulated annealing -------------------------------------------------------------------------------------------------------------------------------------
-sim_anneal <- function(cities, dist_mtrx, temp=1e4, cooling=5e-3, break_after=1e2){
+sim_anneal <- function(cities, dist_mtrx, temp=1e4, cooling=1e-3, break_after=2e2){
   # start with random route
   best_route <- random_route(cities)
   min_d <- calc_dist4mtrx(dist_mtrx, best_route)
