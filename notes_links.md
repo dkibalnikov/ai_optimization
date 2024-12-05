@@ -9,3 +9,12 @@
 [The Traveling Salesman Problem](https://rpubs.com/mstefan-rpubs/salesman)
 
 [Traveling Santa 2018 - Prime Paths](https://www.kaggle.com/competitions/traveling-santa-2018-prime-paths/overview)
+
+[The Christofides Algorithm](https://alon.kr/posts/christofides)
+
+[Christofides algorithm](https://github.com/Retsediv/ChristofidesAlgorithm)
+
+[Top 10 Secrets of Pascal’s Triangle](https://medium.com/i-math/top-10-secrets-of-pascals-triangle-6012ba9c5e23)
+
+
+
