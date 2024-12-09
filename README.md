@@ -1,4 +1,4 @@
-# ai_optimization
+# AI optimization
 
 The project comprises various algorithmic solutions for the TSP, aimed at highlighting differences 
 in terms of accuracy, performance, and flexibility. The list of implemented algorithms includes:
