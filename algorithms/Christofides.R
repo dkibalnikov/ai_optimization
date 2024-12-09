@@ -29,7 +29,7 @@ MST <- mst(G)
 # Find odd vertices -------------------------------------------------------
 odd_vertices <- V(MST)[degree(MST) %% 2 == 1] |> as.integer()
 # Number of vertices (odd-degree vertices)
-n <- nrow(odd_dist_mtrx)
+n <- length(odd_vertices)
 
 # Visualization
 MST_df <- igraph::as_data_frame(MST) |> 
@@ -97,12 +97,9 @@ p0 +
 
 # Find the Hamiltonian path -----------------------------------------------
 shortcut_path <- function(EP){
-  visited <- c()
   HP <- c()
-  
   for(vertex in EP){
-    if (!vertex %in% visited | vertex == 1L){
-      visited <- c(visited, vertex)
+    if (!vertex %in% HP | vertex == EP[1L]){
       HP <- c(HP, vertex)
     }
   }
@@ -119,8 +116,9 @@ p0 +
 
 # Wrap model and calculate batch ------------------------------------------
 get_cristo <- function(task){
-  dist_mtrx <- as.matrix(dist(task))
   # browser()
+  dist_mtrx <- as.matrix(dist(task))
+  
   start_time = Sys.time() 
   
   # Generate minimum spanning tree (MST)
@@ -130,20 +128,20 @@ get_cristo <- function(task){
   # Find odd vertices 
   odd_vertices <- V(MST)[degree(MST) %% 2 == 1] |> as.integer()
   odd_dist_mtrx <- task[odd_vertices, ] |> dist() |> as.matrix()
-  n <- nrow(odd_dist_mtrx)
+  n_odd <- length(odd_vertices)
   
   # Find Minimum Weight Perfect Matching (MPM) 
   cost_vector <- odd_dist_mtrx[lower.tri(odd_dist_mtrx)]
-  constraint_matrix <- matrix(0, nrow = n, ncol = length(cost_vector))
-  combinations <- combn(n, 2)
+  constraint_matrix <- matrix(0, nrow = n_odd, ncol = length(cost_vector))
+  combinations <- combn(n_odd, 2)
   for (col in 1:ncol(combinations)) {
-    constraint_matrix[combinations[1, col], col] <- 1
-    constraint_matrix[combinations[2, col], col] <- 1
+    constraint_matrix[combinations[1, col], col] <- 1L
+    constraint_matrix[combinations[2, col], col] <- 1L
   }
   solution <- lp("min", cost_vector, constraint_matrix, 
-                 const.dir = rep("=", n), 
-                 const.rhs = rep(1, n), # Each vertex must be matched exactly once
-                 binary.vec = 1:length(cost_vector))
+                 const.dir = rep("=", n_odd), 
+                 const.rhs = rep(1, n_odd), # Each vertex must be matched exactly once
+                 binary.vec = seq_along(cost_vector))
   matched_pairs <- combinations[1:2, which(solution$solution == 1)] 
   
   # Find eulerian path 
@@ -152,11 +150,9 @@ get_cristo <- function(task){
   EP <- names(EP$vpath)|> as.integer()
   
   # Find the Hamiltonian path 
-  visited <- c()
   HP <- c()
   for(vertex in EP){
-    if (!vertex %in% visited | vertex == 1L){
-      visited <- c(visited, vertex)
+    if (!vertex %in% HP | vertex == EP[1L]){
       HP <- c(HP, vertex)
     }
   }
@@ -165,7 +161,8 @@ get_cristo <- function(task){
   
   tibble::tibble(model = "Cristofidies", duration = duration, distance = calc_dist4mtrx(dist_mtrx, HP), route = list(HP))
 }
-get_cristo(generate_task(seed = 2024))
+
+get_cristo(generate_task())
 
 res_16 <- calc_tours(get_cristo, n_cities = 16)
 res_32 <- calc_tours(get_cristo, n_cities = 32) 
