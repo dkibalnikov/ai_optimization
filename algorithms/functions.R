@@ -1,3 +1,5 @@
+library(ggplot2)
+
 # Terms 
 # TASK[matrix or tensor] - just set of cities (points) coordinates
 # ROUTE[vector] - the order of visits (solution)
@@ -64,15 +66,21 @@ get_route4state_net <- function(state_net){
 
 # prepares table with coordinates and order in required sequence
 prep4plot <- function(task, route){
-  #browser()
+  # browser()
   tour <- task[route,]
   depot_pos <- which(tour[,1] == 0)
-  if(depot_pos == 1){buity_tour <- tour}else{buity_tour <- rbind(tour[depot_pos:nrow(tour),], tour[1:(depot_pos - 1),])}
+  if(depot_pos == 1){
+    new_order <- seq_along(route)
+    buity_tour <- tour
+    }else{
+    new_order <- c(depot_pos:nrow(tour), 1:(depot_pos - 1))
+    buity_tour <-  tour[new_order,]
+    }
   
   rbind(buity_tour, c(0, 0)) |> 
     tibble::as_tibble(.name_repair = ~c("x", "y")) |>
     dplyr::mutate(order = dplyr::row_number()) |>
-    dplyr::mutate(init_order = c(seq_along(route)[route], 1))
+    dplyr::mutate(init_order = c(route[new_order], 1))
 }
 
 # function to plot solution
@@ -105,4 +113,12 @@ calc_tours <- function(opt_fun, seeds=2021:2030, n_cities = 16, runs = 1){
       dplyr::mutate(seed=x)
   }) |> 
     purrr::list_rbind()
+}
+
+# to check tensor visually 
+glimpse_tnsr <- function(tnsr, rnd = 2){
+  as.matrix(tnsr) |> 
+    apply(2, \(x)round(x, rnd)) |> 
+    as.data.frame() |> 
+    emphatic::hl(scale_color_viridis_c())
 }

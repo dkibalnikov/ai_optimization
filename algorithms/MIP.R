@@ -1,7 +1,6 @@
 library(ompr)
 library(ompr.roi)
 library(ROI.plugin.glpk)
-library(ggplot2)
 source("algorithms/functions.R")
 
 # Create task environment ---------------------------------------------------------------------------------------------------------------------------------

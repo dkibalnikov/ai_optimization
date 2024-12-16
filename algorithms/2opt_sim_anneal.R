@@ -1,4 +1,3 @@
-library(ggplot2)
 source("algorithms/functions.R")
 # source("https://raw.githubusercontent.com/dkibalnikov/ai_optimization/refs/heads/main/algorithms/functions.R")
 
@@ -40,7 +39,7 @@ res_closest <- get_route4mtrx(-dist_mtrx)
 sol_dist_closest <- calc_dist4mtrx(dist_mtrx, res_closest) |> round(2)
 
 prep4plot(cities, res_closest) |> 
-  plot_tour() + 
+  plot_tour(F) + 
   labs(title = paste0("Closes neighborhood solution: ", sol_dist_closest)) 
 
 # 2-opt ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -90,7 +89,7 @@ prep4plot(cities, res_two_opt$route[-length(res_two_opt$route)]) |>
 
 # Simulated annealing -------------------------------------------------------------------------------------------------------------------------------------
 sim_anneal <- function(cities, dist_mtrx, temp=1e4, cooling=1e-3, break_after=2e2){
-  # start with random route
+  # start with random routea
   best_route <- random_route(cities)
   min_d <- calc_dist4mtrx(dist_mtrx, best_route)
   
