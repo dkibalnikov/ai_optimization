@@ -115,6 +115,21 @@ calc_tours <- function(opt_fun, seeds=2021:2030, n_cities = 16, runs = 1){
     purrr::list_rbind()
 }
 
+# to calculate multiple optimization runs for multiple seeds in parallel
+calc_tours_multi <- function(opt_fun, seeds=2021:2030, n_cities = 16, runs = 1, workers = 4){
+  future::plan(multisession, workers = workers)
+  
+  furrr::future_map(seeds, .progress = TRUE, \(x){
+    task <- generate_task(n_cities, x)
+    # browser()
+    seq_len(runs) |> 
+      purrr::map(\(y)opt_fun(task)|>dplyr::mutate(run=y)) |>  
+      purrr::list_rbind() |> 
+      dplyr::mutate(seed=x)
+  }) |> 
+    purrr::list_rbind()
+}
+
 # to check tensor visually 
 glimpse_tnsr <- function(tnsr, rnd = 2){
   as.matrix(tnsr) |> 
