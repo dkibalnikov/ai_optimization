@@ -248,8 +248,8 @@ res <- pointer_net(n_cities, 128, n_cities, 10, TRUE) |> # configure model
   trainer(cities_tnsr, 2, 1000, 0.99) # configure and perform training 
 
 res4save <- res[1:2]
-res4save$best$idx <- as_array(res$best$idxs)
-res4save$last$idx <- as_array(res$last$idxs)
+res4save$best$idxs <- as_array(res$best$idxs)
+res4save$last$idxs <- as_array(res$last$idxs)
 res4save$best$reward <- as_array(res$best$reward)
 res4save$last$reward <- as_array(res$last$reward)
 
