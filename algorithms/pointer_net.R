@@ -247,7 +247,18 @@ trainer <- function(model, train_data, max_grad_norm=2, n_epochs, beta, logs=TRU
 res <- pointer_net(n_cities, 128, n_cities, 10, TRUE) |> # configure model 
   trainer(cities_tnsr, 2, 1000, 0.99) # configure and perform training 
 
-saveRDS(res, "test_samples/pointer_net16.rds") # save for publishing 
+res4save <- res[1:2]
+res4save$best$idx <- as_array(res$best$idx)
+res4save$last$idx <- as_array(res$last$idx)
+res4save$best$reward <- as_array(res$best$reward)
+res4save$last$reward <- as_array(res$last$reward)
+
+torch_save(res$mdl, "test_samples/pointer_mdl") # save for publishing 
+saveRDS(res4save, "test_samples/pointer_res.rds")  # save for publishing 
+
+# torch_load("test_samples/pointer_mdl")
+# readRDS("test_samples/pointer_res.rds")
+
 # Evaluate NN ---------------------------------------------------------------------------------------------------------------------------------------------
 
 # Best solution 
