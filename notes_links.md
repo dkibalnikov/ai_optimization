@@ -24,4 +24,23 @@
 | 17   | [Transformer в картинках](https://habr.com/ru/articles/486358/) |                                                              |                  |
 | 18   | [Pointer Networks](https://arxiv.org/abs/1506.03134)         | We introduce a new neural architecture to learn the conditional probability of an output sequence with elements that are discrete tokens corresponding to positions in an input sequence. |                  |
 | 19   | [Neural Combinatorial Optimization with Reinforcement Learning](https://arxiv.org/abs/1611.09940) | This paper presents a framework to tackle combinatorial optimization problems using neural networks and reinforcement learning. |                  |
+| 20   | [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. | Pointer Network  |
+| 21   | [Neural Machine Translation by Jointly Learning to Align and Translate](https://arxiv.org/abs/1409.0473) | Neural machine translation is a recently proposed approach to machine translation. Unlike the traditional statistical machine translation, the neural machine translation aims at building a single neural network that can be jointly tuned to maximize the translation performance. | Pointer Network  |
+| 22   | [Torch](https://torch.mlverse.org/)                          | R implementation of Torch aka PyTorch package                | Pointer Network  |
+| 23   | [Pointer Network in R](https://www.kaggle.com/code/dmitrykibalnikov/pointer-network-in-r?scriptVersionId=213658878) | R implementation of Pointer Network hosted on Kaggle to test GPU acceleration | Pointer Network  |
+| 24   | [The Bahdanau Attention Mechanism](https://d2l.ai/chapter_attention-mechanisms-and-transformers/bahdanau-attention.html) | Dive into Deep Learning                                      | Pointer Network  |
+| 25   |                                                              |                                                              |                  |
+| 26   |                                                              |                                                              |                  |
+| 27   |                                                              |                                                              |                  |
+| 28   |                                                              |                                                              |                  |
+| 29   |                                                              |                                                              |                  |
+| 30   |                                                              |                                                              |                  |
+| 31   |                                                              |                                                              |                  |
+| 32   |                                                              |                                                              |                  |
+| 33   |                                                              |                                                              |                  |
+| 34   |                                                              |                                                              |                  |
+|      |                                                              |                                                              |                  |
+|      |                                                              |                                                              |                  |
+|      |                                                              |                                                              |                  |
+|      |                                                              |                                                              |                  |
 
