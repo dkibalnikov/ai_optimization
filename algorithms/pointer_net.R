@@ -252,8 +252,13 @@ res4save$best$idxs <- as_array(res$best$idxs)
 res4save$last$idxs <- as_array(res$last$idxs)
 res4save$best$reward <- as_array(res$best$reward)
 res4save$last$reward <- as_array(res$last$reward)
+res4save$best$mem_probs <- res$best$mem_probs |> 
+  torch_stack(dim = 2) |> # stack probabilities 
+  as.matrix()
+res4save$last$mem_probs <- res$last$mem_probs |> 
+  torch_stack(dim = 2) |> # stack probabilities 
+  as.matrix()
 
-torch_save(res$mdl, "test_samples/pointer_mdl") # save for publishing 
 saveRDS(res4save, "test_samples/pointer_res.rds")  # save for publishing 
 
 # torch_load("test_samples/pointer_mdl")
@@ -296,6 +301,7 @@ res$last$mem_probs |>
   torch_stack(dim = 2) |>  # stack probabilities 
   glimpse_tnsr(rnd = 1)
 
+
 # Check generalization capability 
 new_task <- generate_task(seed = 2023)  
 new_task_tnsr <- torch_tensor(new_task)
@@ -309,6 +315,11 @@ prep4plot(new_task, new_task_sol) |>
   plot_tour() +
   labs(title = paste0("Итоговое решение: ", -new_task_sol_dist), 
        col = "Маршрут", x = "x", y = "y")
+
+res4save$new$reward <- new_task_sol_dist
+res4save$new$idxs <- new_task_sol
+saveRDS(res4save, "test_samples/pointer_res.rds")  # save for publishing 
+
 
 # Wrap model and calculate batch ------------------------------------------
 get_pointer <- function(task){
