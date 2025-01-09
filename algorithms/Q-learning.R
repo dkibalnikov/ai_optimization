@@ -1,5 +1,6 @@
 source("algorithms/functions.R") # helper functions within AI optimization  
 library(patchwork)
+library(data.table)
 
 # Create task environment ---------------------------------------------------------------------------------------------------------------------------------
 n_cities <- 16
@@ -83,10 +84,12 @@ p1 <- prep4plot(cities, res$best) |>
   labs(title = paste0("Лучшее решение: ", calc_dist4mtrx(dist_mtrx, res$best) |>round(2)), 
        col = "Маршрут", x = "x", y = "y")
 
+res$final <- get_route4mtrx(res$Q_mtrx)
+
 # Last solution 
-p2 <- prep4plot(cities, res$last) |> 
+p2 <- prep4plot(cities, res$final) |> 
   plot_tour() +
-  labs(title = paste0("Итоговое решение: ", calc_dist4mtrx(dist_mtrx, res$last)|>round(2)), 
+  labs(title = paste0("Итоговое решение: ", calc_dist4mtrx(dist_mtrx, res$final)|>round(2)), 
        col = "Маршрут", x = "x", y = "y")
 
 # Training perfomance metrics 
@@ -103,9 +106,74 @@ p3 <- tibble::tibble(n = seq_along(res$reward), reward = res$reward) |>
 (p1+p2)/p3 + plot_annotation("Q-learning")
 
 # Check Q-learning matrix 
-apply(res$Q_mtrx, 1, round, 2) |> 
+apply(res$Q_mtrx, 2, round) |> 
   as.data.frame() |>
   emphatic::hl(scale_color_viridis_c())
 
+# Animated solution  ------------------------------------------------------
+data4anim <- res$Q_mtrx[,res$final] |> # take cols from Q matrix in sol order
+  as.data.table() |> 
+  melt(measure.vars = 1:n_cities, value.name = "qval",  variable.name="order") |> # stack cols 
+  _[, id:=rep(seq_len(n_cities), n_cities)] |> # set initial ids
+  _[, order:=as.integer(order)] |> # set the order 
+  merge(data.table(cities)[,id:=.I][res$final,][,order:=c(16, 1:(n_cities-1))][], 
+        by = c("id"), all.x=TRUE,suffixes=c("","_")) |> # add coordinates info
+  _[,`:=`(step=fifelse(order==order_, TRUE, FALSE))] |> # define records with transition
+  _[,step_:=Reduce(x=step, \(input, output){if(output) TRUE else input}, accumulate = T), by = "id"] |> # mark records after transition
+  _[, `:=`(x_=fifelse(step_,x,NA), y_=fifelse(step_,y,NA))] |> # define vars for geom_path()
+  _[,step_:=fifelse(step_==step, FALSE, TRUE), by = "id"] |> # mask transition record
+  _[,qval_:=fifelse(!step_,qval,NA)]  %>% # deifine masked q vals 
+  list(., # outcome from previous step 
+       split(., by =  "order")[[n_cities]][,order:=order+1], # get last order part
+       data.table(order = 17, order_ = 17, x_=cities[res$final[2],1], y_=cities[res$final[2],2])) |> # add final destination 
+  rbindlist(fill=TRUE) |> 
+  setkey(order, order_) # ordering is vital for animation 
 
 
+p <- data4anim[!is.na(x_)][order(order)] |> 
+  ggplot(aes(col = order)) +
+  geom_point(aes(x, y, size = qval_), alpha=.5, data =data4anim ) + 
+  geom_path(aes(x_, y_), arrow=arrow(angle = 20, length = unit(0.20, "inches"),
+                                       ends = "last", type = "open")) +
+  geom_point(aes(x, y)) +
+  geom_text(aes(x, y, label = id), nudge_x = 3, nudge_y = 3, size =5, col= "black") +
+  #scale_size_area() +
+  scale_size_continuous(range = c(0,10)) +
+  #scale_color_viridis_c()+
+  gganimate::transition_states(order, transition_length = 1, state_length = 100, wrap = F) +
+  gganimate::enter_appear(early = T)
+
+gganimate::animate(p, renderer = gifski_renderer())
+
+
+
+
+
+# Wrap model and calculate batch ------------------------------------------
+get_Qlearn <- function(task){
+  # browser()
+  dist_mtrx <- as.matrix(dist(task))
+  
+  start_time = Sys.time() 
+  res <- Q_train(cities = task, 
+                 pars = list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.99, 
+                            gamma = 0.99, lr = 0.99),
+                 epochs=1000, dist_mtrx = dist_mtrx)
+  
+  duration <- Sys.time() - start_time
+  
+  final <- get_route4mtrx(res$Q_mtrx)
+  
+  tibble::tibble(model = "Q-learning", duration = duration, 
+                 distance = calc_dist4mtrx(dist_mtrx, final), route = list(final))
+}
+
+get_Qlearn(generate_task())
+
+res_16 <- calc_tours(get_Qlearn, n_cities = 16, runs = 10)
+res_32 <- calc_tours(get_Qlearn, n_cities = 32, runs = 10) 
+res_64 <- calc_tours(get_Qlearn, n_cities = 64, runs = 10) 
+
+saveRDS(res_16, "test_results/qlearn_16nodes.rds")
+saveRDS(res_32, "test_results/qlearn_32nodes.rds")
+saveRDS(res_64, "test_results/qlearn_64nodes.rds")
