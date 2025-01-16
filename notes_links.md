@@ -29,8 +29,8 @@
 | 22   | [Torch](https://torch.mlverse.org/)                          | R implementation of Torch aka PyTorch package                | Pointer Network  |
 | 23   | [Pointer Network in R](https://www.kaggle.com/code/dmitrykibalnikov/pointer-network-in-r?scriptVersionId=213658878) | R implementation of Pointer Network hosted on Kaggle to test GPU acceleration | Pointer Network  |
 | 24   | [The Bahdanau Attention Mechanism](https://d2l.ai/chapter_attention-mechanisms-and-transformers/bahdanau-attention.html) | Dive into Deep Learning                                      | Pointer Network  |
-| 25   |                                                              |                                                              |                  |
-| 26   |                                                              |                                                              |                  |
+| 25   | [Reinforcement Learning Theory Book (rus)](https://arxiv.org/abs/2201.09746) | Reinforcement Learning theory                                | Q-learning       |
+| 26   | [Понимание Q-learning, проблема «Прогулка по скале»](https://habr.com/ru/articles/443240/) |                                                              | Q-learning       |
 | 27   |                                                              |                                                              |                  |
 | 28   |                                                              |                                                              |                  |
 | 29   |                                                              |                                                              |                  |
