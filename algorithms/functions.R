@@ -137,3 +137,12 @@ glimpse_tnsr <- function(tnsr, rnd = 2){
     as.data.frame() |> 
     emphatic::hl(scale_color_viridis_c())
 }
+
+# formated tensor viewer
+check_tnsr <- function(tnsr, rnd = 2){
+  tnsr |> 
+    as_array() |> 
+    apply(2, \(x)round(x, rnd)) |> 
+    as.data.frame() |>
+    emphatic::hl(scale_color_viridis_c())
+}

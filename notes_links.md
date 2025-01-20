@@ -31,7 +31,7 @@
 | 24   | [The Bahdanau Attention Mechanism](https://d2l.ai/chapter_attention-mechanisms-and-transformers/bahdanau-attention.html) | Dive into Deep Learning                                      | Pointer Network  |
 | 25   | [Reinforcement Learning Theory Book (rus)](https://arxiv.org/abs/2201.09746) | Reinforcement Learning theory                                | Q-learning       |
 | 26   | [Понимание Q-learning, проблема «Прогулка по скале»](https://habr.com/ru/articles/443240/) |                                                              | Q-learning       |
-| 27   |                                                              |                                                              |                  |
+| 27   | [Reinforcement Learning](https://d2l.ai/chapter_reinforcement-learning/index.html) | Part from Dive into deep learning                            | Q-learning       |
 | 28   |                                                              |                                                              |                  |
 | 29   |                                                              |                                                              |                  |
 | 30   |                                                              |                                                              |                  |
