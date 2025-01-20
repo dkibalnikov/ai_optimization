@@ -73,13 +73,10 @@ attn_tst(tst[,1:16,,drop=F], tst[,c(12,13,4,14,8,15,11),], tst[,c(12,13,4,14,8,1
 
 
 # Replay buffer functions -------------------------------------------------
-create_buffer <- function(buffer_size=1000){
-  vector(mode = "list", buffer_size)
-}
 
-push2buffer <- function(bfr, tnsr){
+push2buffer <- function(bfr, buffer_max_size=100, tnsr){
   idx <- sapply(bfr, \(x)!is.null(x)) |> which()
-  if(length(bfr) >= length(idx)+1){
+  if(length(bfr) < buffer_max_size){
     bfr[[length(idx)+1]] <- tnsr
     return(bfr)
   }
@@ -88,11 +85,17 @@ push2buffer <- function(bfr, tnsr){
   }
 }
 
-create_buffer(2) |> 
-  push2buffer(torch_rand(2, 3)) |> 
-  push2buffer(torch_rand(3, 3)) |> 
-  push2buffer(torch_rand(1, 2)) |>
-  push2buffer(torch_rand(5, 3)) 
+create_buffer(3) |> 
+  push2buffer(4, torch_rand(2, 3)) |> 
+  push2buffer(4, torch_rand(3, 3)) |> 
+  push2buffer(4,torch_rand(1, 2)) |>
+  push2buffer(4,torch_rand(5, 3)) |>
+  push2buffer(4,torch_rand(6, 2)) 
+
+sample_buffer <- function(bfr, sample_size=100){
+  idx <- sapply(bfr, \(x)!is.null(x)) |> which()
+  
+}
 
 # DQN -----------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -114,10 +117,8 @@ DQN <- nn_module(
       nn_relu())
   },
   forward = function(x, coords=cities_tnsr){
-    # browser()
-    n_cities <- cities_tnsr$size(1)
-    if(n_cities==length(x)) return(-torch_ones(n_cities)*1e3)
-    else{
+    #if(length(x)+1 == coords$size(1)) return(-torch_ones(n_cities)*1e3)
+    #else{
       glimpse <- self$glimpse
       emb <- self$embedder(coords)$unsqueeze(1)
       pos <- emb[,x[length(x)], drop=FALSE] 
@@ -136,7 +137,7 @@ DQN <- nn_module(
       
       #Q_dist[closest] <- self$out(torch_cdist(attn_pnt, emb)[-1,-1])[closest]
       Q_dist
-    }
+   # }
   }
 )
 
@@ -167,7 +168,7 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
   
   start_time = Sys.time()
   
-  mem_rep = deque() # replay buffer 
+  mem_repl = vector(mode = "list", 10) # replay buffer 
   
   for(j in seq_len(epochs)){
     # Initialize epoch environment
@@ -175,38 +176,39 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
     mem = sample(n_cities, 1)
     epoch_reward = 0
     
-    for(i in 2:n_cities){
+    for(i in 1:(n_cities-1)){
       q = state_net(mem) # get Q Vector in particular state
       
       # Define next best action either in greedy way either explore space 
       if(runif(1) > pars$epsilon){ 
         # EXPLOITATION
         q[mem] = -1e6  # avoid already visited states
-        action = q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
+        action =  q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
       }else{  
         # EXPLORATION
         options = seq_cities[which(!seq_cities %in% mem)] # avoid already visited states
-        action = ifelse(length(options) == 1, options, sample(options, size = 1)) #prob = as_array(state_net(mem)[options] |> nnf_softplus(beta = .05))
+        action = ifelse(length(options)==1, options, sample(options, size = 1)) #prob = as_array(state_net(mem)[options] |> nnf_softplus(beta = .05))
       }
       
       reward = -dist_mtrx[mem[length(mem)], action] # get reward for such an action
       current_q = q[action]
-      current_q_mem[i-1] <- list(current_q) # save to memory
-      
+      current_q_mem[i] <- list(current_q) # save to memory
+     
       mem = c(mem, action) # update memory
-      with_no_grad({next_q = target_net(mem)})
-      
+        
       # Update Q-learning matrix according to Bellman Equation
-      if(length(mem) == n_cities){ # final destination city 
-        next_q_mem[i-1] <- pars$gamma*next_q[mem[1]] |> as_array() + reward # not necessary to update q 
+      if(i == n_cities-1){ # final destination city 
+        next_q_mem[i] <- pars$gamma*dist_mtrx[action, mem[1]] + reward # not necessary to update q 
         epoch_reward = epoch_reward + reward - dist_mtrx[action, mem[1]] # update rewards
       }else{
+        with_no_grad({next_q = target_net(mem)})
         next_q[mem] = -1e6 # avoid already visited states
-        next_q_mem[i-1] <- pars$gamma*next_q$max()$unsqueeze(1) |> as_array() + reward
+        next_q_mem[i] <- pars$gamma*next_q$max(1)[[1]]$unsqueeze(1) |> as_array() + reward
         epoch_reward = epoch_reward + reward # update rewards
       }
     }
     
+    #browser()
     #loss_fun <- nn_mse_loss()
     loss <- nnf_smooth_l1_loss(torch_stack(current_q_mem), next_q_mem)
    
@@ -266,7 +268,7 @@ p3 <- tibble::tibble(n = seq_along(res$loss), loss = res$loss, reward = res$rewa
   geom_line(alpha = .3) + 
   geom_smooth(formula = y ~ s(x, bs = "cs"), method = 'gam') +
   facet_wrap(~variable, nrow = 2, scales = "free") +
-  geom_point(data = ~dplyr::filter(., n==which.min(res$reward)), col = "firebrick") + 
+  geom_point(data = ~dplyr::filter(., n==which.max(res$reward)), col = "firebrick") + 
   labs(title = "Характеристики обучения нейронной сети", col = "", y = "Значение", x = "Итерация обучения")
 
 # Combine plots to one 

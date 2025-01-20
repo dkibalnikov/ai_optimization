@@ -138,7 +138,7 @@ glimpse_tnsr <- function(tnsr, rnd = 2){
     emphatic::hl(scale_color_viridis_c())
 }
 
-# formated tensor viewer
+# formatted tensor viewer
 check_tnsr <- function(tnsr, rnd = 2){
   tnsr |> 
     as_array() |> 
@@ -146,3 +146,20 @@ check_tnsr <- function(tnsr, rnd = 2){
     as.data.frame() |>
     emphatic::hl(scale_color_viridis_c())
 }
+
+# get rout out of NN
+get_route4tnsr <- function(state_net){
+  # browser()
+  # state_net <- res$state_net
+  mem <- 1L
+  n_seq <- state_net(1L)$size()
+  
+  for(i in 2:n_seq){
+    state_opts <- state_net(mem)
+    state_opts[mem] <- -Inf
+    state <- state_opts$max(1)[[2]]|>as_array()
+    mem <- c(mem, state)
+  }
+  mem
+}
+
