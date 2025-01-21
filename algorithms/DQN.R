@@ -74,27 +74,34 @@ attn_tst(tst[,1:16,,drop=F], tst[,c(12,13,4,14,8,15,11),], tst[,c(12,13,4,14,8,1
 
 # Replay buffer functions -------------------------------------------------
 
-push2buffer <- function(bfr, buffer_max_size=100, tnsr){
-  idx <- sapply(bfr, \(x)!is.null(x)) |> which()
+push2buffer <- function(bfr, buffer_max_size=1000, tnsr){
   if(length(bfr) < buffer_max_size){
-    bfr[[length(idx)+1]] <- tnsr
+    bfr[[length(bfr)+1]] <- tnsr
     return(bfr)
   }
-  else{bfr[[length(idx)+1]] <- tnsr
+  else{bfr[[length(bfr)+1]] <- tnsr
   return(bfr[-1])
   }
 }
 
-create_buffer(3) |> 
+NULL |> 
   push2buffer(4, torch_rand(2, 3)) |> 
   push2buffer(4, torch_rand(3, 3)) |> 
   push2buffer(4,torch_rand(1, 2)) |>
   push2buffer(4,torch_rand(5, 3)) |>
   push2buffer(4,torch_rand(6, 2)) 
 
-sample_buffer <- function(bfr, sample_size=100){
-  idx <- sapply(bfr, \(x)!is.null(x)) |> which()
-  
+
+# Calculate Q value -------------------------------------------------------
+get_next <- function(action, reward, mem, target_net, dist_mtrx){
+  # Update Q-learning matrix according to Bellman Equation
+  if(length(mem) == n_cities-1){ # final destination city 
+    -pars$gamma*dist_mtrx[action, mem[1]] + reward # not necessary to update q 
+  }else{
+    with_no_grad({next_q = target_net(mem)})
+    next_q[mem] = -1e6 # avoid already visited states
+    pars$gamma*next_q$max(1)[[1]]$unsqueeze(1) |> as_array() + reward
+  }
 }
 
 # DQN -----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -117,27 +124,26 @@ DQN <- nn_module(
       nn_relu())
   },
   forward = function(x, coords=cities_tnsr){
-    #if(length(x)+1 == coords$size(1)) return(-torch_ones(n_cities)*1e3)
-    #else{
+
       glimpse <- self$glimpse
       emb <- self$embedder(coords)$unsqueeze(1)
       pos <- emb[,x[length(x)], drop=FALSE] 
+      #start <- emb[,x[1], drop=FALSE]
       target <- which(!seq_len(n_cities) %in% x)
       
-      if(length(target)<glimpse){closest <- target}else{
+      if(length(target) < glimpse){closest <- target}else{
         closest <- target[torch_cdist(pos, emb[,target])$topk(glimpse, largest=F)[[2]][-1,-1] |> as_array()]
       }
       attn_pnt <- self$attn(pos, emb[,closest,drop=F], emb[,closest,drop=F])
-      #self_pnt <- self$attn(emb, emb[,closest,drop=F], emb[,closest,drop=F])
       
       Q_dist <- -torch_ones(n_cities)*1e3
-      NBA <- self$out(torch_cdist(attn_pnt, emb)[-1,-1])[closest]
+      attn_dist <- torch_cdist(attn_pnt, emb)[-1,-1]
+      #term_dist <- torch_cdist(start, emb)[-1,-1]
+      drift <- self$out(attn_dist)[closest] + attn_dist[closest] #+ term_dist[closest]
       
-      Q_dist[closest] <- -torch_cdist(pos, emb)[-1,-1][closest] + NBA 
+      Q_dist[closest] <- -torch_cdist(pos, emb)[-1,-1][closest] + drift 
       
-      #Q_dist[closest] <- self$out(torch_cdist(attn_pnt, emb)[-1,-1])[closest]
       Q_dist
-   # }
   }
 )
 
@@ -147,6 +153,7 @@ DQN(132, n_cities)(1)$unsqueeze(2) |> check_tnsr()
 
 # Train loop ---------------------------------------------------------------------------------------------------------------------------------------------------
 # Train loop with gradient step for move batch (the priority solution)
+# Simple DQN
 Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
   # cities_mtrx <- cities
   
@@ -154,21 +161,18 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
   seq_cities = seq_len(n_cities)
   dist_mtrx <- dist(cities_mtrx) |> as.matrix()
   
-  loss_curve = rewards_curve = rep(-1e4, epochs)
-  best_sol = integer(n_cities)
-  
   state_net <- DQN(n_hidden, n_cities)
   target_net <- DQN(n_hidden, n_cities)
   lapply(target_net$parameters, \(x){x$requires_grad <- FALSE})
   
   optimizer <- optim_adamw(state_net$parameters, lr=1e-3, amsgrad=F)
   
+  loss_curve = rewards_curve = rep(-1e4, epochs)
+  best_sol = integer(n_cities)
   current_q_mem <- vector(mode='list', length=n_cities-1) # prepare memory for faster calculation
   next_q_mem <- numeric(length=n_cities-1) # prepare memory for faster calculation
   
   start_time = Sys.time()
-  
-  mem_repl = vector(mode = "list", 10) # replay buffer 
   
   for(j in seq_len(epochs)){
     # Initialize epoch environment
@@ -193,12 +197,12 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
       reward = -dist_mtrx[mem[length(mem)], action] # get reward for such an action
       current_q = q[action]
       current_q_mem[i] <- list(current_q) # save to memory
-     
+      
       mem = c(mem, action) # update memory
-        
+      
       # Update Q-learning matrix according to Bellman Equation
       if(i == n_cities-1){ # final destination city 
-        next_q_mem[i] <- pars$gamma*dist_mtrx[action, mem[1]] + reward # not necessary to update q 
+        next_q_mem[i] <- -pars$gamma*dist_mtrx[action, mem[1]] + reward # not necessary to update q 
         epoch_reward = epoch_reward + reward - dist_mtrx[action, mem[1]] # update rewards
       }else{
         with_no_grad({next_q = target_net(mem)})
@@ -211,7 +215,7 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
     #browser()
     #loss_fun <- nn_mse_loss()
     loss <- nnf_smooth_l1_loss(torch_stack(current_q_mem), next_q_mem)
-   
+    
     # Optimize the model
     optimizer$zero_grad()
     loss$backward()
@@ -233,13 +237,103 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
     loss_curve[j] <- loss 
     
     if (j %% 10 == 0) cat("Epoch: ", j, "| Time elapsed: ", format(round(Sys.time() - start_time, 2)), " | Loss: ", loss, " | Reward: ", epoch_reward, "\n")
-    # }
+  }
+  list(last = mem, reward = rewards_curve, best = best_sol, loss = loss_curve, state_net = state_net, target_net=target_net)
+}
+# DQN with buffer
+Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
+  # cities_mtrx <- cities
+  
+  n_cities = nrow(cities_mtrx)
+  seq_cities = seq_len(n_cities)
+  dist_mtrx <- dist(cities_mtrx) |> as.matrix()
+  
+  loss_curve = NULL
+  rewards_curve = NULL
+  best_sol = NULL
+  mem_repl = NULL # replay buffer 
+  
+  state_net <- DQN(n_hidden, n_cities)
+  target_net <- DQN(n_hidden, n_cities)
+  lapply(target_net$parameters, \(x){x$requires_grad <- FALSE})
+  
+  optimizer <- optim_adamw(state_net$parameters, lr=1e-3, amsgrad=F)
+  
+  start_time = Sys.time()
+  
+  for(j in seq_len(epochs)){
+    # Initialize epoch environment
+    # mem = 1 # select 1st city 
+    mem = sample(n_cities, 1)
+    epoch_reward = 0
+    
+    for(i in 1:(n_cities-1)){
+      q = state_net(mem) # get Q Vector in particular state
+      
+      # Define next best action either in greedy way either explore space 
+      if(runif(1) > pars$epsilon){ 
+        # EXPLOITATION
+        q[mem] = -1e6  # avoid already visited states
+        action =  q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
+      }else{  
+        # EXPLORATION
+        options = seq_cities[which(!seq_cities %in% mem)] # avoid already visited states
+        action = ifelse(length(options)==1, options, sample(options, size = 1)) #prob = as_array(state_net(mem)[options] |> nnf_softplus(beta = .05))
+      }
+      
+      reward = -dist_mtrx[mem[length(mem)], action] # get reward for such an action
+      mem_repl <-  push2buffer(mem_repl, 1000, list(s=mem, a=action, r=reward))
+      mem <- c(mem, action) # update memory
+    }
+    
+    if(j > 10 & j %% 20 == 0){
+      
+      smpl <- mem_repl[sample(length(mem_repl), 200, replace = F)]
+      q_approx <- lapply(smpl, \(x)state_net(x$s)[x$a]) |> torch_stack()
+      target_net$eval()
+      q_calc <- lapply(smpl, \(x)get_next(x$a, x$r, x$s, target_net, dist_mtrx)) |> torch_cat()
+      
+      loss <- nnf_smooth_l1_loss(q_approx, q_calc)
+      
+      # Optimize the model
+      optimizer$zero_grad()
+      loss$backward()
+      
+      # In-place gradient clipping
+      nn_utils_clip_grad_value_(state_net$parameters, 100)
+      optimizer$step()
+      
+      loss <- as_array(loss)
+      
+      # Lower epsilon for less exploration probability 
+      
+      state_net$eval()
+      route <- get_route4tnsr(state_net)
+      state_net$train()
+      reward <- cities_tnsr[route]|> calc_dist4tnsr()|>as_array() |>round(2)
+      
+      rewards_curve <- c(rewards_curve, reward)
+      loss_curve <- c(loss_curve, loss)
+      if(max(rewards_curve, na.rm = T) <= reward){
+        best_sol <- route
+        
+        new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
+        target_net$load_state_dict(new_dct)
+
+      }
+      
+      cat("Epoch: ", j, "| Time elapsed: ", format(round(Sys.time() - start_time, 2)), " | Loss: ", loss, 
+                            " | Reward: ",reward, "\n")
+    }
+    
+    if(pars$epsilon > pars$epsilon_min){pars$epsilon = pars$epsilon_decay*pars$epsilon}
   }
   list(last = mem, reward = rewards_curve, best = best_sol, loss = loss_curve, state_net = state_net, target_net=target_net)
 }
 
-pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.995, gamma = 0.95)
-res <- Q_train(cities, pars, epochs = 1000, n_hidden = 64)
+pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.995, gamma = 0.99)
+pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.99, gamma = 0.99)
+res <- Q_train(cities, pars, epochs = 400, n_hidden = 64)
 
 
 # Evaluation --------------------------------------------------------------
@@ -250,7 +344,12 @@ p1 <- prep4plot(cities, res$best) |>
   labs(title = paste0("Лучшее решение: ", -calc_dist4tnsr(cities_tnsr[res$best])|>as_array() |>round(2)), 
        col = "Маршрут", x = "x", y = "y")
 
+res$state_net$eval()
 res$final <- get_route4tnsr(res$state_net) # extract final solution 
+
+res$target_net$eval()
+res$final <- get_route4tnsr(res$target_net) # extract final solution 
+
 
 # saveRDS(res, "test_samples/DQN.rds")
 # res <- readRDS("test_samples/DQN.rds")
@@ -279,4 +378,4 @@ seq_along(cities[,1]) |>
   sapply(\(x)res$target_net(x)|> as.matrix()) |> 
   apply(MARGIN =2, FUN = \(x)round(x, 2)) |> #t() |> 
   as.data.frame() |> 
-  emphatic::hl(scale_color_viridis_c(), rows=row_number()[-1])
+  emphatic::hl(scale_color_viridis_c())
