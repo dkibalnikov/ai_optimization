@@ -35,7 +35,7 @@ attention <- nn_module(
     self$dropout = nn_dropout(dropout)
   },
   forward = function(queries, keys, values){
-    #  browser()
+    # browser()
     queries = self$W_q(queries)
     keys = self$W_k(keys)
     # After dimension expansion, shape of queries: 
@@ -43,7 +43,7 @@ attention <- nn_module(
     # and shape of keys: 
     # (batch_size, 1, no. of key-value pairs, num_hiddens). 
     # Sum them up with broadcasting
-    features =  torch_tanh(queries$unsqueeze(3) + keys$unsqueeze(2))
+    features = torch_tanh(queries$unsqueeze(3) + keys$unsqueeze(2))
     # There is only one output of self.w_v, so we remove the last
     # one-dimensional entry from the shape. Shape of scores: 
     # (batch_size, no. of queries, no. of key-value pairs)
@@ -67,9 +67,18 @@ attention(2, 0)(queries, keys, values)$squeeze(1) |> check_tnsr(4)
 tst <- cities_tnsr$unsqueeze(1) 
 attn_tst <- attention(2, 0)
 attn_tst(tst[,1:16,,drop=F], tst[,13:16,], tst[,13:16,])[-1]  |> check_tnsr()
-attn_tst(tst[,1:16,,drop=F], tst[,c(1,9,2),], tst[,c(1,9,2),])[-1] |> check_tnsr(3)
+attn_tst(tst[,c(1,9,2,7),,drop=F], tst[,c(1,9,2,7),], tst[,c(1,9,2,7),])[-1] |> check_tnsr(3)
+attn_tst(tst[,1,,drop=F], tst[,c(9,2,7),], tst[,c(9,2,7),])[-1] |> 
+  torch_cdist(tst[,c(9,2,7),,drop=F][-1]) |>
+  check_tnsr(3)
+
+attn_tst(tst[,1,,drop=F], tst[,c(9,2,7,15,4),], tst[,c(9,2,7,15,4),])[-1] |> 
+  torch_cdist(tst[,c(9,2,7,12),,drop=F][-1]) |>
+  check_tnsr(3)
+  
+  check_tnsr(3)
 attn_tst(tst[,1:16,,drop=F], tst[,c(5,15),], tst[,c(5,15),])[-1] |> check_tnsr(3)
-attn_tst(tst[,1:16,,drop=F], tst[,c(12,13,4,14,8,15,11),], tst[,c(12,13,4,14,8,15,11),])[-1] |> check_tnsr(3)
+attn_tst(tst[,1:16,,drop=F], tst[,c(14,8,15),], tst[,c(14,8,15),])[-1] |> check_tnsr(3)
 
 
 # Replay buffer functions -------------------------------------------------
@@ -139,7 +148,7 @@ DQN <- nn_module(
       Q_dist <- -torch_ones(n_cities)*1e3
       attn_dist <- torch_cdist(attn_pnt, emb)[-1,-1]
       #term_dist <- torch_cdist(start, emb)[-1,-1]
-      drift <- self$out(attn_dist)[closest] + attn_dist[closest] #+ term_dist[closest]
+      drift <- self$out(attn_dist)[closest] + attn_dist[closest] #+ term_dist[closest] # residual connection 
       
       Q_dist[closest] <- -torch_cdist(pos, emb)[-1,-1][closest] + drift 
       
@@ -286,7 +295,7 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
       mem <- c(mem, action) # update memory
     }
     
-    if(j > 10 & j %% 20 == 0){
+    if(j %% 20 == 0){
       
       smpl <- mem_repl[sample(length(mem_repl), 200, replace = F)]
       q_approx <- lapply(smpl, \(x)state_net(x$s)[x$a]) |> torch_stack()
@@ -316,10 +325,9 @@ Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
       loss_curve <- c(loss_curve, loss)
       if(max(rewards_curve, na.rm = T) <= reward){
         best_sol <- route
-        
-        new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
+        # new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
+        new_dct <- state_net$state_dict()
         target_net$load_state_dict(new_dct)
-
       }
       
       cat("Epoch: ", j, "| Time elapsed: ", format(round(Sys.time() - start_time, 2)), " | Loss: ", loss, 
