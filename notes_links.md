@@ -28,11 +28,11 @@
 | 21   | [Neural Machine Translation by Jointly Learning to Align and Translate](https://arxiv.org/abs/1409.0473) | Neural machine translation is a recently proposed approach to machine translation. Unlike the traditional statistical machine translation, the neural machine translation aims at building a single neural network that can be jointly tuned to maximize the translation performance. | Pointer Network  |
 | 22   | [Torch](https://torch.mlverse.org/)                          | R implementation of Torch aka PyTorch package                | Pointer Network  |
 | 23   | [Pointer Network in R](https://www.kaggle.com/code/dmitrykibalnikov/pointer-network-in-r?scriptVersionId=213658878) | R implementation of Pointer Network hosted on Kaggle to test GPU acceleration | Pointer Network  |
-| 24   | [The Bahdanau Attention Mechanism](https://d2l.ai/chapter_attention-mechanisms-and-transformers/bahdanau-attention.html) | Dive into Deep Learning                                      | Pointer Network  |
-| 25   | [Reinforcement Learning Theory Book (rus)](https://arxiv.org/abs/2201.09746) | Reinforcement Learning theory                                | Q-learning       |
+| 24   | [The Bahdanau Attention Mechanism](https://d2l.ai/chapter_attention-mechanisms-and-transformers/bahdanau-attention.html) | ]Dive into Deep Learning                                     | Pointer Network  |
+| 25   | [Reinforcement Learning Theory Book (rus)](https://arxiv.org/abs/2201.09746) | Reinforcement Learning theory                                | Q-learning/ DQN  |
 | 26   | [Понимание Q-learning, проблема «Прогулка по скале»](https://habr.com/ru/articles/443240/) |                                                              | Q-learning       |
 | 27   | [Reinforcement Learning](https://d2l.ai/chapter_reinforcement-learning/index.html) | Part from Dive into deep learning                            | Q-learning       |
-| 28   |                                                              |                                                              |                  |
+| 28   | [Reinforcement Learning (DQN) Tutorial](https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html) | This tutorial shows how to use PyTorch to train a Deep Q Learning (DQN) agent on the CartPole-v1 task from [Gymnasium](https://gymnasium.farama.org/). | DQN              |
 | 29   |                                                              |                                                              |                  |
 | 30   |                                                              |                                                              |                  |
 | 31   |                                                              |                                                              |                  |

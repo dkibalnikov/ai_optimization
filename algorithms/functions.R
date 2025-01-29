@@ -148,14 +148,13 @@ check_tnsr <- function(tnsr, rnd = 2){
 }
 
 # get rout out of NN
-get_route4tnsr <- function(state_net){
-  # browser()
+get_route4tnsr <- function(state_net, cities_tnsr){
   # state_net <- res$state_net
   mem <- 1L
-  n_seq <- state_net(1L)$size()
+  n_seq <- cities_tnsr$size(1)
   
   for(i in 2:n_seq){
-    state_opts <- state_net(mem)
+    state_opts <- state_net(mem, cities_tnsr)
     state_opts[mem] <- -Inf
     state <- state_opts$max(1)[[2]]|>as_array()
     mem <- c(mem, state)
