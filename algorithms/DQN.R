@@ -165,7 +165,7 @@ DQN <- nn_module(
 DQN(132, n_cities, 2)(c(1, 9, 2, 12, 3))$unsqueeze(2) |> check_tnsr()
 DQN(132, n_cities, 8)(1:15)$unsqueeze(2)  |> check_tnsr()
 DQN(132, n_cities)(1)$unsqueeze(2) |> check_tnsr()
-
+ 
 # Train loop ---------------------------------------------------------------------------------------------------------------------------------------------------
 # Simple DQN
 Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
@@ -370,7 +370,7 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
   list(last = mem, reward = rewards_curve, best = best_sol, loss = loss_curve, state_net = state_net, target_net=target_net)
 }
 pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.99, gamma = 0.99)
-res <- Q_train_bfr(cities, pars, epochs = 100, n_hidden = 64)
+res <- Q_train_bfr(cities, pars, epochs = 400, n_hidden = 64)
 
 # Evaluation --------------------------------------------------------------
 # Best solution 
@@ -415,6 +415,15 @@ seq_along(cities[,1]) |>
   as.data.frame() |> 
   emphatic::hl(scale_color_viridis_c())
 
+# Test generalization capability ------------------------------------------
+new_task <- generate_task(n_cities = 16, seed = 2022) 
+new_res <- get_route4tnsr(res$target_net, torch_tensor(new_task)) # extract final solution 
+
+prep4plot(new_task, new_res) |> 
+  plot_tour() +
+  labs(title = paste0("Итоговое решение: ", -calc_dist4tnsr(torch_tensor(new_task)[new_res])|>as_array() |>round(2)), 
+       col = "Маршрут", x = "x", y = "y")
+
 # Wrap model and calculate batch ------------------------------------------
 get_DQN_bfr <- function(task, n_hidden=128){
   
@@ -441,6 +450,6 @@ res_16 <- calc_tours(get_DQN_bfr, n_cities = 16, runs = 10)
 res_32 <- calc_tours(get_DQN_bfr, n_cities = 32, runs = 10) 
 res_64 <- calc_tours(get_DQN_bfr, n_cities = 64, runs = 10) 
 
-saveRDS(res_16_0, "test_results/DQN_bfr_16nodes.rds")
+saveRDS(res_16, "test_results/DQN_bfr_16nodes.rds")
 saveRDS(res_32, "test_results/DQN_bfr_32nodes.rds")
 saveRDS(res_64, "test_results/DQN_bfr_64nodes.rds")
