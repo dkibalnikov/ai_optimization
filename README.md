@@ -10,3 +10,7 @@ in terms of accuracy, performance, and flexibility. The list of implemented algo
 - `pointer_net.R` - Neural network based on Bahdanau Attention Mechanism.
 - `Q-learning.R` - Table-based reinforcement Q-learning algorithm. 
 - `DQN.R` - Literally, the Deep Q-learning algorithm, which has turned out to be quite effective.
+
+![Accuracy](diagrams/accuracy.png)
+
+![Duration](diagrams/duration.png)
