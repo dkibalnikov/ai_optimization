@@ -147,7 +147,7 @@ check_tnsr <- function(tnsr, rnd = 2){
     emphatic::hl(scale_color_viridis_c())
 }
 
-# get rout out of NN
+# get route out of NN
 get_route4tnsr <- function(state_net, cities_tnsr){
   # state_net <- res$state_net
   mem <- 1L

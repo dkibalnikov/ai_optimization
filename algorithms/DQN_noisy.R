@@ -24,6 +24,46 @@ dist_tnsr <- dist(cities) |> as.matrix() |>
   `diag<-`(1000) |> 
   torch_tensor()
 
+# Noisy Nets --------------------------------------------------------------
+NoisyLinear <- nn_module(
+  "NoisyLinear",
+  initialize = function(in_features, out_features, sigma_init = 0.017) {
+    self$in_features <- in_features
+    self$out_features <- out_features
+    
+    # Trainable parameters
+    self$mu_weight <- nn_parameter(torch_empty(out_features, in_features))
+    self$sigma_weight <- nn_parameter(torch_full(c(out_features, in_features), sigma_init))
+    self$mu_bias <- nn_parameter(torch_empty(out_features))
+    self$sigma_bias <- nn_parameter(torch_full(c(out_features), sigma_init))
+    
+    
+    self$reset_parameters()
+    # Non-trainable noise buffers
+    #self$register_buffer("epsilon_weight", torch_empty(out_features, in_features))
+    #self$register_buffer("epsilon_bias", torch_empty(out_features))
+  },
+  
+  reset_parameters = function() {
+    bound <- 1 / sqrt(self$in_features)
+    nn_init_uniform_(self$mu_weight, -bound, bound)
+    nn_init_uniform_(self$mu_bias, -bound, bound)
+  },
+  
+  forward = function(x) {
+    # Sample noise
+
+    # Apply noise
+    weight = self$mu_weight + self$sigma_weight * torch_normal(0,1,size = c(self$out_features, self$in_features))
+    bias = self$mu_bias + self$sigma_bias * torch_normal(0,1,size = self$out_features)
+    
+    torch_matmul(x, weight$t()) + bias
+  }
+)
+
+tst <- NoisyLinear(16, 32)
+tst((torch_rand(16)))
+
 # Attention module ----------------------------------------------------------------------------------------------------------------------------------------
 attention <- nn_module(
   initialize = function(hidden_size, dropout, seq_len=16){
@@ -49,7 +89,7 @@ attention <- nn_module(
     
     nnf_softmax(scores, -1) |> 
       self$dropout() |> 
-    # Shape of values: (batch_size, no. of key-value pairs, value dimension)
+      # Shape of values: (batch_size, no. of key-value pairs, value dimension)
       torch_bmm(values) 
   }
 )
@@ -64,18 +104,37 @@ attn_tst <- attention(2, 0)
 attn_tst(tst[,1:16,,drop=F], tst[,13:16,], tst[,13:16,])[-1]  |> check_tnsr()
 attn_tst(tst[,c(1,9,2,7),,drop=F], tst[,c(1,9,2,7),], tst[,c(1,9,2,7),])[-1] |> check_tnsr(3)
 
-# In case agent in pos #1 and looks to 9,2,7
-attn_tst(tst[,1,,drop=F], tst[,c(9,2,7),], tst[,c(9,2,7),])[-1] |> 
-  torch_cdist(tst[,c(9,2,7),,drop=F][-1]) |>
-  check_tnsr(3)
+# Noisy attention module
+NoisyAttention <- nn_module(
+  "NoisyAttention",
+  
+  initialize = function(hidden_size, dropout, seq_len=16) {
+    self$W_q <- NoisyLinear(hidden_size, hidden_size)
+    self$W_k <- NoisyLinear(hidden_size, hidden_size)
+    self$w_v <- NoisyLinear(hidden_size, 1)
+    self$dropout <- nn_dropout(dropout)
+  },
+  
+  forward = function(queries, keys, values) {
+    queries <- self$W_q(queries)
+    keys <- self$W_k(keys)
+    
+    # Expand dimensions and compute attention features
+    features <- torch_tanh(queries$unsqueeze(3) + keys$unsqueeze(2))
+    
+    # Compute scores using noisy linear layer
+    scores <- self$w_v(features)$squeeze(-1)
+    
+    # Apply softmax and dropout, then compute weighted sum
+    nnf_softmax(scores, -1) |> 
+      self$dropout() |> 
+      torch_bmm(values) 
+  }
+)
 
-# In case agent in pos #1 and looks to 9,2,7,15,4
-attn_tst(tst[,1,,drop=F], tst[,c(9,2,7,15,4),], tst[,c(9,2,7,15,4),])[-1] |> 
-  torch_cdist(tst[,c(9,2,7,12),,drop=F][-1]) |>
-  check_tnsr(3)
-
-attn_tst(tst[,1:16,,drop=F], tst[,c(5,15),], tst[,c(5,15),])[-1] |> check_tnsr(3)
-attn_tst(tst[,1:16,,drop=F], tst[,c(14,8,15),], tst[,c(14,8,15),])[-1] |> check_tnsr(3)
+# Some tests
+attn_tst <- NoisyAttention(2, 0)
+attn_tst(tst[,1:16,,drop=F], tst[,13:16,], tst[,13:16,])[-1]  |> check_tnsr()
 
 # Replay buffer functions -------------------------------------------------
 
@@ -112,24 +171,23 @@ get_next <- function(action, reward, mem, target_net, dist_mtrx, cities_tnsr){
 }
 
 # DQN -----------------------------------------------------------------------------------------------------------------------------------------------------
-# NBA calculated as attention approximation
+# DQN is rewritten for noisy nets 
 DQN <- nn_module(
   initialize = function(n_hidden, n_cities, n_embeding = 32, dropout = 0.1, glimpse = n_cities){
     self$embedder <- nn_linear(2, n_embeding, bias = F)
-    self$attn <- attention(n_embeding, dropout) # it seems handcrafted attention is better than standart one
+    self$attn <- NoisyAttention(n_embeding, dropout) # it seems handcrafted attention is better than standart one
     # self$attn <- nn_multihead_attention(embed_dim = n_embeding, num_heads = 1, dropout = dropout)
     self$glimpse <- glimpse
     
     self$out <- nn_sequential(
-      nn_linear(n_cities, n_hidden),
+      NoisyLinear(n_cities, n_hidden),
       # nn_relu(),
       # nn_linear(n_hidden, n_hidden),
       # nn_relu(),
       # nn_linear(n_hidden, n_hidden),
       nn_relu(),
-      nn_linear(n_hidden, n_cities),
+      NoisyLinear(n_hidden, n_cities),
       nn_relu())
-
   },
   forward = function(x, coords=cities_tnsr){
     # Glimpse is the quantity of closest cities considered during step
@@ -159,6 +217,15 @@ DQN <- nn_module(
     Q_dist[closest] <- -torch_cdist(pos, emb)[-1,-1][closest] + drift 
     
     Q_dist
+  },
+  reset_parameters = function() {
+
+    self$out$children$`0`$reset_parameters()
+    self$out$children$`2`$reset_parameters()
+    
+    self$attn$children$W_q$reset_parameters
+    self$attn$children$W_k$reset_parameters
+    self$attn$children$w_v$reset_parameters
   }
 )
 
@@ -166,105 +233,9 @@ DQN <- nn_module(
 DQN(132, n_cities, 2)(c(1, 9, 2, 12, 3))$unsqueeze(2) |> check_tnsr()
 DQN(132, n_cities, 8)(1:15)$unsqueeze(2)  |> check_tnsr()
 DQN(132, n_cities)(1)$unsqueeze(2) |> check_tnsr()
- 
+DQN(132, n_cities)$reset_parameters()
+
 # Train loop ---------------------------------------------------------------------------------------------------------------------------------------------------
-# Simple DQN
-Q_train <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64){
-
-  n_cities = nrow(cities_mtrx)
-  seq_cities = seq_len(n_cities)
-  dist_mtrx <- dist(cities_mtrx) |> as.matrix()
-  cities_tnsr <- torch_tensor(cities_mtrx)
-  
-  state_net <- DQN(n_hidden, n_cities)
-  target_net <- DQN(n_hidden, n_cities)
-  lapply(target_net$parameters, \(x){x$requires_grad <- FALSE})
-  
-  optimizer <- optim_adamw(state_net$parameters, lr=1e-3, amsgrad=F)
-  
-  loss_curve = rewards_curve = rep(-1e4, epochs)
-  best_sol = integer(n_cities)
-  current_q_mem <- vector(mode='list', length=n_cities-1) # prepare memory for faster calculation
-  next_q_mem <- numeric(length=n_cities-1) # prepare memory for faster calculation
-  
-  start_time = Sys.time()
-  
-  for(j in seq_len(epochs)){
-    # Initialize epoch environment
-    #mem = 1 # select 1st city 
-    mem = sample(n_cities, 1)
-    epoch_reward = 0
-    
-    for(i in 1:(n_cities-1)){ # last city should be separatly processed as termination node 
-      q = state_net(mem, cities_tnsr) # get Q Vector in particular state
-      
-      # Define next best action either in greedy way either explore space 
-      if(runif(1) > pars$epsilon){ 
-        # EXPLOITATION
-        q[mem] = -1e6  # avoid already visited states
-        action =  q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
-      }else{  
-        # EXPLORATION
-        options = seq_cities[which(!seq_cities %in% mem)] # avoid already visited states
-        action = ifelse(length(options)==1, options, sample(options, size = 1)) 
-      }
-      
-      reward = -dist_mtrx[mem[length(mem)], action] # get reward for such an action
-      current_q = q[action] # take the action 
-      current_q_mem[i] <- list(current_q) # save to memory
-      
-      mem = c(mem, action) # update memory
-      
-      # Update Q-learning matrix according to Bellman Equation
-      if(i == n_cities-1){ # final destination city 
-        next_q_mem[i] <- -pars$gamma*dist_mtrx[action, mem[1]] + reward # terminate process
-        epoch_reward = epoch_reward + reward - dist_mtrx[action, mem[1]] # update rewards
-      }else{
-        target_net$eval() # frozen model 
-        with_no_grad({next_q = target_net(mem, cities_tnsr)})
-        next_q[mem] = -1e6 # avoid already visited states
-        next_q_mem[i] <- pars$gamma*next_q$max(1)[[1]]$unsqueeze(1) |> as_array() + reward
-        epoch_reward = epoch_reward + reward # update rewards
-      }
-    }
-    
-    # Calculate model loss
-    loss <- nnf_smooth_l1_loss(torch_stack(current_q_mem), next_q_mem)
-    
-    # Optimize the model
-    optimizer$zero_grad()
-    loss$backward()
-    
-    # In-place gradient clipping
-    nn_utils_clip_grad_value_(state_net$parameters, 100)
-    optimizer$step()
-    
-    # Lower epsilon for less exploration probability 
-    if(pars$epsilon > pars$epsilon_min){pars$epsilon = pars$epsilon_decay*pars$epsilon}
-    
-    if(j %% 30 == 0){
-      # new_dct <- state_net$state_dict()
-      # Smooth NN update for stability 
-      new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
-      target_net$load_state_dict(new_dct)
-    }
-    
-    # Save data for monitoring
-    loss <- as_array(loss)
-    if(best_sol[1]==0){best_sol <- mem}
-    if(max(rewards_curve, na.rm = T) <= epoch_reward){best_sol <- mem}
-    rewards_curve[j] <- epoch_reward 
-    loss_curve[j] <- loss 
-    
-    # Print out intermediate results
-    if (j %% 10 == 0) cat("Epoch: ", j, "| Time elapsed: ", format(round(Sys.time() - start_time, 2)), 
-                          " | Loss: ", loss, " | Reward: ", epoch_reward, "\n")
-  }
-  list(last = mem, reward = rewards_curve, best = best_sol, loss = loss_curve, state_net = state_net, target_net=target_net)
-}
-pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.995, gamma = 0.99)
-res <- Q_train(cities, pars, epochs = 800, n_hidden = 64)
-
 # DQN with buffer
 Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose=TRUE){
   
@@ -295,17 +266,10 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
     for(i in 1:(n_cities-1)){
       q = state_net(mem, cities_tnsr) # get Q Vector in particular state
       
-      # Define next best action either in greedy way either explore space 
-      if(runif(1) > pars$epsilon){ 
-        # EXPLOITATION
-        q[mem] = -1e6  # avoid already visited states
-        action =  q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
-      }else{  
-        # EXPLORATION
-        options = seq_cities[which(!seq_cities %in% mem)] # avoid already visited states
-        action = ifelse(length(options)==1, options, sample(options, size = 1)) #prob = as_array(state_net(mem)[options] |> nnf_softplus(beta = .05))
-      }
-      
+      # Define next best action in greedy way 
+      q[mem] = -1e6  # avoid already visited states
+      action =  q$max(1)[[2]]$unsqueeze(1) |> as_array() # no grad by default for position
+     
       reward = -dist_mtrx[mem[length(mem)], action] # get reward for such an action
       
       # Save state, action and reward to buffer
@@ -315,6 +279,7 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
     }
     
     if(j %% 20 == 0){
+     
       # Sample observations from buffer
       smpl <- mem_repl[sample(length(mem_repl), 200, replace = F)]
       # Extract Q value with activated gradient  
@@ -323,15 +288,15 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
       
       # DQN requires Q calculation utilizing target NN
       # y := r + gamma*(1-done)*Q_(s',a')
-      # q_calc <- lapply(smpl, \(x)get_next(x$a, x$r, x$s, target_net, dist_mtrx, cities_tnsr)) |> torch_cat()
+      q_calc <- lapply(smpl, \(x)get_next(x$a, x$r, x$s, target_net, dist_mtrx, cities_tnsr)) |> torch_cat()
       
       # Twin DQN for more process stability
       # y := r + gamma*Q_(s', argmaxQ(s', a'))
-      max_a <- lapply(smpl, \(x)state_net(x$a, cities_tnsr)$max(1)[[2]]|>as_array())
-      q_calc <- mapply(FUN = \(s, max_a){target_net(s$s, cities_tnsr)[max_a] + s$r}, smpl, max_a) |> torch_stack()
+      #max_a <- lapply(smpl, \(x)state_net(x$a, cities_tnsr)$max(1)[[2]]|>as_array())
+      #q_calc <- mapply(FUN = \(s, max_a){target_net(s$s, cities_tnsr)[max_a] + s$r}, smpl, max_a) |> torch_stack()
       
       loss <- nnf_smooth_l1_loss(q_approx, q_calc)
-      
+
       # Optimize the model
       optimizer$zero_grad()
       loss$backward()
@@ -339,6 +304,9 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
       # In-place gradient clipping
       nn_utils_clip_grad_value_(state_net$parameters, 100)
       optimizer$step()
+      
+      # Reset noise after update
+      state_net$reset_parameters()
       
       state_net$eval()
       route <- get_route4tnsr(state_net, cities_tnsr)
@@ -356,22 +324,20 @@ Q_train_bfr <- function(cities_mtrx, pars, epochs = 1000, n_hidden = 64, verbose
         best_sol <- route
         new_dct <- state_net$state_dict()
         # Smooth NN update for stability 
-        # new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
+        #new_dct <- mapply(\(t,s)0.5*s + (1-0.5)*t, target_net$state_dict(), state_net$state_dict())
         target_net$load_state_dict(new_dct)
-      }
+       }
       
       # Print out for intermediate monitoring
       if(verbose) cat("Epoch: ", j, "| Time elapsed: ", format(round(Sys.time() - start_time, 2)), 
-          " | Loss: ", loss," | Reward: ",reward, "\n")
+                      " | Loss: ", loss," | Reward: ", reward, "\n")
     }
     
-    # Lower epsilon for less exploration probability 
-    if(pars$epsilon > pars$epsilon_min){pars$epsilon = pars$epsilon_decay*pars$epsilon}
   }
   list(last = mem, reward = rewards_curve, best = best_sol, loss = loss_curve, state_net = state_net, target_net=target_net)
 }
-pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.99, gamma = 0.99)
-res <- Q_train_bfr(cities, pars, epochs = 400, n_hidden = 64)
+pars <- list(gamma = 0.99)
+res <- Q_train_bfr(cities, pars, epochs = 800, n_hidden = 64)
 
 # Evaluation --------------------------------------------------------------
 # Best solution 
@@ -426,32 +392,3 @@ prep4plot(new_task, new_res) |>
   labs(title = paste0("Итоговое решение: ", -calc_dist4tnsr(torch_tensor(new_task)[new_res])|>as_array() |>round(2)), 
        col = "Маршрут", x = "x", y = "y")
 
-# Wrap model and calculate batch ------------------------------------------
-get_DQN_bfr <- function(task, n_hidden=128){
-  
-  cities_tnsr <- torch_tensor(task)
-  
-  start_time = Sys.time() 
-  
-  pars <- list(epsilon = 1, epsilon_min = 0.01, epsilon_decay = 0.99, gamma = 0.99)
-  res <- Q_train_bfr(cities_mtrx=task, pars = pars, epochs = 400, n_hidden = n_hidden, verbose = FALSE)
-  
-  duration <- Sys.time() - start_time
-  
-  res$target_net$eval()
-  final <- get_route4tnsr(res$target_net, cities_tnsr) # extract final solution 
-  
-  tibble::tibble(model = "DQN buffer", duration = duration, 
-                 distance = -calc_dist4tnsr(cities_tnsr[final])|>as_array(), 
-                 route = list(final))
-}
-
-get_DQN_bfr(generate_task(n_cities = 16), 64)
-
-res_16 <- calc_tours(get_DQN_bfr, n_cities = 16, runs = 10)
-res_32 <- calc_tours(get_DQN_bfr, n_cities = 32, runs = 10) 
-res_64 <- calc_tours(get_DQN_bfr, n_cities = 64, runs = 10) 
-
-saveRDS(res_16, "test_results/DQN_bfr_16nodes.rds")
-saveRDS(res_32, "test_results/DQN_bfr_32nodes.rds")
-saveRDS(res_64, "test_results/DQN_bfr_64nodes.rds")

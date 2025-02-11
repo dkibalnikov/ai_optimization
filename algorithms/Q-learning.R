@@ -44,7 +44,7 @@ Q_train <- function(cities, pars, epochs, dist_mtrx){
       }
       else{  # exploration
         options = n_seq[which(!n_seq %in% mem)] # avoid already visited states
-        action = sample(options, size = 1)
+        action = ifelse(length(options) == 1, options, sample(options, size = 1))
       }
       
       reward = -dist_mtrx[state, action] # get reward for such a action
