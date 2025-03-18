@@ -162,3 +162,8 @@ get_route4tnsr <- function(state_net, cities_tnsr){
   mem
 }
 
+# use GPU if possible
+use_cuda <- function(obj){
+  if (cuda_is_available()){obj<-obj$cuda()}
+  obj
+} 

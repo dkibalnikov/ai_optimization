@@ -2,14 +2,9 @@ library(torch) # PyTorch alternative for R
 library(patchwork) # package to plot multiple plots 
 source("algorithms/functions.R") # helper functions within AI optimization  
 
-# Set up GPU --------------------------------------------------------------
-avail_cuda <- cuda_is_available()
-dvc <- torch_device(if(avail_cuda)"cuda" else "cpu")
-dvc
-use_cuda <- function(obj){
-  if (avail_cuda){obj<-obj$cuda()}
-  obj
-} 
+# Setup GPU ---------------------------------------------------------------
+dvc <- torch_device(if(cuda_is_available())"cuda" else "cpu")
+
 # Create task environment ---------------------------------------------------------------------------------------------------------------------------------
 n_cities <- 16
 
@@ -24,7 +19,6 @@ p0 <- as.data.frame(cities) |>
   geom_text(aes(label = n), nudge_x = 3)
 
 p0
-
 
 cities_tnsr <- torch_tensor(cities, device=dvc) # tensor version of task
 # Attention module ----------------------------------------------------------------------------------------------------------------------------------------
